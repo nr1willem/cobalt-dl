@@ -1,0 +1,243 @@
+#!/bin/bash
+set -e
+
+# Edit default options
+URL=""
+VIDEO_CODEC="h264"
+VIDEO_QUALITY="720"
+AUDIO_FORMAT="mp3"
+AUDIO_ONLY="false"
+AUDIO_MUTED="false"
+TIKTOK_WATERMARK="false"
+TIKTOK_FULL_AUDIO="false"
+DUB_LANG="false"
+VIDEO_DOWNLOAD="false"
+AUDIO_DOWNLOAD="false"
+
+# "Custom" handling of the args, because getops isn't very good for this
+while [[ "$#" -gt 0 ]]; do
+	case "$1" in
+	--input | -i)
+		URL="$2"
+		shift
+		;;
+	--video-download | -vd)
+		VIDEO_DOWNLOAD=true
+		;;
+	--audio-download | -ad)
+		AUDIO_DOWNLOAD=true
+		;;
+	--video-codec | -vc)
+		VIDEO_CODEC="$2"
+		shift
+		;;
+	--video-quality | -vq)
+		VIDEO_QUALITY="$2"
+		shift
+		;;
+	--audio-format | -af)
+		AUDIO_FORMAT="$2"
+		shift
+		;;
+	--audio-only | -ao)
+		AUDIO_ONLY="$2"
+		shift
+		;;
+	--audio-muted | -am)
+		AUDIO_MUTED="$2"
+		shift
+		;;
+	--tiktok-watermark | -tw)
+		TIKTOK_WATERMARK="$2"
+		shift
+		;;
+	--tiktok-fullaudio | -ta)
+		TIKTOK_FULL_AUDIO="$2"
+		shift
+		;;
+	--dub-lang | -dl)
+		DUB_LANG="$2"
+		shift
+		;;
+	--help | -h)
+		echo -e '\033[4mcobalt-dl\033[0m: \033[3m"best way to save what you love"\033[0m'
+		echo -e "\033[1m	--input / -i: provide a url."
+		echo -e "	--video-download / -vd,	--audio-download / -ad: you can download video or audio"
+		echo -e "	--video-quality / -vq: provide a video quality. 144 / ... / 2160 / max"
+		echo -e "	--audio-format / -af: provide an audio format. best / mp3 / ogg / wav / opus"
+		echo -e "	--audio-only / -ao: audio only. true / false"
+		echo -e "	--audio-muted / -am: audio muted. true / false"
+		echo -e "	--tiktok-watermark / -tw: remove tiktok watermark. true / false"
+		echo -e "	--tiktok-fullaudio / -ta: download tiktok full audio. true / false"
+		echo -e "	--dub-lang / -dl: backend uses Accept-Language for YouTube video audio tracks when true. true / false"
+		echo -e "	--help / -h: print out this message\033[0m"
+		echo -e "\033[3moriginal author: https://github.com/wukko/cobalt\nbash script: https://github.com/nr1willem\033[0m"
+		exit 1
+		;;
+	*)
+		echo "Unknown option: $1"
+		exit 1
+		;;
+	esac
+	shift
+done
+
+check_prompted_url() {
+	if [[ -z "$URL" ]]; then
+		echo "please provide a url."
+		exit 1
+	fi
+
+	URL_PATTERNS=(
+		"https?://(www\.)?bilibili\.com/video/BV[a-zA-Z0-9]+(/?\?[^ ]*)?"
+		"https?://(www\.)?instagram\.com/p/[^/]+/"
+		"https?://(www\.)?instagram\.com/reel/[^/]+/"
+		"https?://(www\.)?pinterest\.(com|[^/]+)/pin/[^/]+/"
+		"https?://(www\.)?reddit\.com/r/[^/]+/comments/[^/]+/[^/]+/"
+		"https?://(www\.)?reddit\.com/r/[^/]+/comments/[^/]+/[^/]+/\?(utm_source=[^&]+&?)*(utm_medium=[^&]+&?)*(utm_name=[^&]+&?)*(utm_term=[^&]+&?)*(utm_content=[^&]+&?)*"
+		"https?://(www\.)?soundcloud\.com/[^/]+/[^/]+"
+		"https?://(www\.)?tiktok\.com/@[^/]+/video/\d+"
+		"https?://www\.tumblr\.com/[^/]+/\d+"
+		"https?://www\.tumblr\.com/[^/]+/\d+/[^/]+"
+		"https?://(www\.)?twitter\.com/[^/]+/status/\d+"
+		"https?://(www\.)?vimeo\.com/\d+"
+		"https?://(www\.)?vine\.co/v/[a-zA-Z0-9]+"
+		"https?://(www\.)?vk\.com/vkvideo\?z=video-?\d+_\d+%2F[a-zA-Z0-9%]+%2Fpl_wall_-?\d+"
+		"https?://(www\.)?vk\.com/vkclips\?z=video-?\d+_\d+%2F[a-zA-Z0-9]+%2Fpl_wall_-?\d+"
+		"https?://(www\.)?(youtube\.com/watch\?v=[a-zA-Z0-9_-]{11}|youtu\.be/[a-zA-Z0-9_-]{11})"
+		"https?://(www\.)?youtube\.com/shorts/[a-zA-Z0-9_-]{11}(\?[^ ]*)?"
+		"https?://music\.youtube\.com/watch\?v=[a-zA-Z0-9_-]{11}(&[^ ]*)?"
+	)
+	
+	match_found=0
+
+	for PATTERN in "${URL_PATTERNS[@]}"; do
+		if [[ $URL =~ $PATTERN ]]; then
+			match_found=1
+			break
+		fi
+	done
+
+	if [[ $match_found -eq 0 ]]; then
+		echo "it seems like this service is not supported yet or your link is invalid. have you pasted the right link?"
+		exit 1
+	fi
+}
+
+check_options() {
+	if [[ "$VIDEO_CODEC" != "h264" && "$VIDEO_CODEC" != "av1" && "$VIDEO_CODEC" != "av9" ]]; then
+		echo "video codec must be either h264, av1, or av9. inputted codec was $VIDEO_CODEC"
+		exit 1
+	fi
+
+	if [[ ! ("$VIDEO_QUALITY" =~ ^[0-9]+$ && "$VIDEO_QUALITY" -ge 144 && "$VIDEO_QUALITY" -le 2160) && "$VIDEO_QUALITY" != "max" ]]; then
+		echo "video quality must be a value between 144 and 2160 or you can give a value of max. inputted quality was $VIDEO_QUALITY"
+		exit 1
+	fi
+
+	if [[ "$AUDIO_FORMAT" != "best" && "$AUDIO_FORMAT" != "mp3" && "$AUDIO_FORMAT" != "ogg" && "$AUDIO_FORMAT" != "wav" && "$AUDIO_FORMAT" != "opus" ]]; then
+		echo "audio format must be either mp3, ogg, wav, opus, or you can give a value of best. inputted format was $AUDIO_FORMAT"
+		exit 1
+	fi
+
+	for bool in AUDIO_ONLY AUDIO_MUTED TIKTOK_WATERMARK TIKTOK_FULL_AUDIO DUB_LANG; do
+		if [[ "${!bool}" != "true" && "${!bool}" != "false" ]]; then
+			echo "$bool can be either true or false. value was ${!bool}"
+			exit 1
+		fi
+	done
+}
+
+video_request() {
+	API_URL="https://co.wuk.sh/api/json"
+	REQUEST=$(jq --null-input \
+		--arg aFormat $AUDIO_FORMAT \
+		--arg dubLang $DUB_LANG \
+		--arg url $URL  \
+		--arg vCodec $VIDEO_CODEC \
+		--arg vQuality $VIDEO_QUALITY \
+		--arg isAudioMuted $AUDIO_MUTED \
+		'{"aFormat": $aFormat, "dubLang": $dubLang, "url": $url, "vCodec": $vCodec, "vQuality": $vQuality}')
+
+}
+
+audio_request() {
+	API_URL="https://co.wuk.sh/api/json"
+	REQUEST=$(jq --null-input \
+		--arg aFormat $AUDIO_FORMAT \
+		--arg dubLang $DUB_LANG \
+		--arg isAudioOnly $AUDIO_ONLY \
+		--arg	isNoTTWatermark $TIKTOK_WATERMARK \
+		--arg isTTFullAudio $TIKTOK_FULL_AUDIO \
+		--arg url $URL \
+		'{"aFormat": $aFormat, "dubLang": $dubLang, "isAudioOnly": $isAudioOnly, "isNoTTWatermark": $isNoTTWatermark, "isTTFullAudio": $isTTFullAudio, "url": $url}')
+}
+
+response() {
+	RESPONSE=$(curl -s -J -X POST -H "Content-Type: application/json" -H "Accept: application/json" \-d "$REQUEST" "$API_URL")
+	STATUS=$(echo "$RESPONSE" | jq -r '.status')
+	
+	echo $RESPONSE
+
+	if [[ $? -ne 0 ]]; then
+		echo "ERROR: curl request failed"
+		exit 1
+	fi
+
+	if [[ $STATUS == "error" ]]; then
+		echo "ERROR: you can try again or maybe the service api is down"
+	fi
+
+	if [[ $STATUS == "rate-limit" ]]; then
+		echo "ERROR: you have hit the rate limit"
+	fi
+
+	if [[ $STATUS == "redirect" || "stream"  ]]; then
+		API_RESPONSE_URL=$(echo "$RESPONSE" | jq -r '.url')
+		command curl -s -LOJ $API_RESPONSE_URL
+		exit 1
+	fi
+
+	if [[ $? -ne 0 ]]; then
+		echo "ERROR: failed to download the file from $API_RESPONSE_URL"
+		exit 1
+	fi
+}
+
+request_logic()  {
+	if [[ $VIDEO_DOWNLOAD == false ]] && [[ $AUDIO_DOWNLOAD == false ]]; then
+		echo "please specify your download type: either audio or video"
+		exit 1
+	fi
+
+	if [[ $VIDEO_DOWNLOAD == true ]] && [[ $AUDIO_DOWNLOAD == false ]]; then
+		video_request 
+		response
+	fi
+
+	if [[ $VIDEO_DOWNLOAD == false  ]] && [[ $AUDIO_DOWNLOAD == true ]]; then
+		audio_request
+		response
+	fi
+	
+}
+
+print_options() {
+	echo -e "\033[4moptions\033[0m:"
+	echo -e "\033[1m 	url: $URL"
+	echo -e "	video download: $VIDEO_DOWNLOAD"
+	echo -e "	audio download: $AUDIO_DOWNLOAD"
+	echo -e "	video codec: $VIDEO_CODEC"
+	echo -e "	video quality: $VIDEO_QUALITY"
+	echo -e "	audio format: $AUDIO_FORMAT"
+	echo -e "	audio only: $AUDIO_ONLY"
+	echo -e "	tiktok watermark: $TIKTOK_WATERMARK"
+	echo -e "	tiktok full audio: $TIKTOK_FULL_AUDIO"
+	echo -e "	audio muted: $AUDIO_MUTED"
+	echo -e "	dub lang: $DUB_LANG\033[0m"
+}
+
+check_prompted_url
+check_options
+print_options
+request_logic
