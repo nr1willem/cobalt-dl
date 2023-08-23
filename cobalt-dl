@@ -111,7 +111,7 @@ check_prompted_url() {
 	match_found=0
 
 	for PATTERN in "${URL_PATTERNS[@]}"; do
-		if [[ $URL =~ $PATTERN ]]; then
+		if echo "$URL" | grep -Pq "$PATTERN"; then
 			match_found=1
 			break
 		fi
@@ -194,6 +194,11 @@ response() {
 	if [[ $STATUS == "redirect" || "stream"  ]]; then
 		API_RESPONSE_URL=$(echo "$RESPONSE" | jq -r '.url')
 		command curl -s -LOJ $API_RESPONSE_URL
+		FILENAME=$(ls -Art | tail -n 1)
+		if echo "$FILENAME" | grep -q "?"; then
+			NEW_FILENAME=$(echo "$FILENAME" | grep -o '^[^?]*' | grep -v '?$')
+			mv "$FILENAME" "$NEW_FILENAME"
+		fi
 		exit 1
 	fi
 
