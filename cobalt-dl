@@ -14,7 +14,6 @@ DUB_LANG="false"
 VIDEO_DOWNLOAD="false"
 AUDIO_DOWNLOAD="false"
 
-# "Custom" handling of the args, because getops isn't very good for this
 while [[ "$#" -gt 0 ]]; do
 	case "$1" in
 	--input | -i)
