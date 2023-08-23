@@ -70,7 +70,7 @@ while [[ "$#" -gt 0 ]]; do
 		echo -e "	--tiktok-fullaudio / -ta: download tiktok full audio. true / false"
 		echo -e "	--dub-lang / -dl: backend uses Accept-Language for YouTube video audio tracks when true. true / false"
 		echo -e "	--help / -h: print out this message\033[0m"
-		echo -e "\033[3moriginal author: https://github.com/wukko/cobalt\nbash script: https://github.com/nr1willem\033[0m"
+		echo -e "\033[3moriginal author: https://github.com/wukko/cobalt\nbash script: https://github.com/nr1willem/cobalt-dl\033[0m"
 		exit 1
 		;;
 	*)
