@@ -176,8 +176,6 @@ response() {
 	RESPONSE=$(curl -s -J -X POST -H "Content-Type: application/json" -H "Accept: application/json" \-d "$REQUEST" "$API_URL")
 	STATUS=$(echo "$RESPONSE" | jq -r '.status')
 	
-	echo $RESPONSE
-
 	if [[ $? -ne 0 ]]; then
 		echo "ERROR: curl request failed"
 		exit 1
