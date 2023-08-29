@@ -1,4 +1,4 @@
-# cobalt-dl
+# cobalt_dl
 this isn't a replacement nor a alternative to https://co.wukko.me/. the script is just a cli tool to interface with the [cobalt api](https://github.com/wukko/cobalt).
 ### requirements
 you'll need [jq](https://jqlang.github.io/jq/), [curl](https://github.com/curl/curl) and [grep](https://en.wikipedia.org/wiki/Grep). jq handles the json, curl handles the downloading of media and grep is for the regex. <br /> i will eventually replace jq with a bash only implementation.
